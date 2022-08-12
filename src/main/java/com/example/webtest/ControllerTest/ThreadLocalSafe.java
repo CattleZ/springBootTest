@@ -1,17 +1,15 @@
 package com.example.webtest.ControllerTest;
 
+import org.springframework.util.Assert;
+import org.springframework.util.StopWatch;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -138,7 +136,7 @@ public class ThreadLocalSafe {
     }
 
     /**
-     * ConcurrentHashMap提供了一些原子性的简单符合逻辑。
+     * ConcurrentHashMap提供了一些原子性的简单复合逻辑。
      * 场景： 使用ConcurrentHashMap 来统计key出现次数的场景，
      *       使用ConcurrentHashMap来统计，Key的范围是10
      *       使用最多10个并发，循环操作1000万次，每次操作都累加随机的Key
@@ -156,7 +154,7 @@ public class ThreadLocalSafe {
         forkJoinPool.execute(()-> IntStream.rangeClosed(1, LOOP_COUNT).parallel().forEach(
                 i -> {
                     // 获得一个随机的key
-                    String key = "item"+ ThreadLocalRandom.current().nextInt(TIME_COUNT2);
+                    String key = "item:"+ ThreadLocalRandom.current().nextInt(TIME_COUNT2);
                     synchronized (freqs) {
                         if (freqs.containsKey(key)) {
                             freqs.put(key,freqs.get(key) +1);
@@ -169,6 +167,118 @@ public class ThreadLocalSafe {
         forkJoinPool.shutdown();
         forkJoinPool.awaitTermination(1, TimeUnit.HOURS);
         return freqs;
+    }
+
+    // 通过锁的方式锁住Map，然后做判断，读取现在的累加值、加1、保存累加后值的逻辑。
+    private Map<String , Long> gooduse() throws InterruptedException {
+        // 初始化元素的数量
+        ConcurrentHashMap<String, LongAdder> freqs = new ConcurrentHashMap<>(TIME_COUNT2);
+        // 创建线程池 默认大小THREAD_COUNT2
+        ForkJoinPool forkJoinPool = new ForkJoinPool(THREAD_COUNT2);
+        forkJoinPool.execute(() -> IntStream.rangeClosed(1, LOOP_COUNT).parallel().forEach(i-> {
+           String key = "item" + ThreadLocalRandom.current().nextInt(TIME_COUNT2);
+           // 利用computeIfAbsent() 方法来实例化LongAdder ,然后利用LongAdder 来进行线程安全计数
+            freqs.computeIfAbsent(key, k-> new LongAdder()).increment();
+
+        }));
+        forkJoinPool.shutdown();
+        forkJoinPool.awaitTermination(1, TimeUnit.HOURS);
+        // 因为value 是LongAdder 而不是Long ,所以需要做一次转换才能返回
+        return freqs.entrySet().stream().collect(
+                Collectors.toMap(
+                        e ->e.getKey(),
+                        e -> e.getValue().longValue()
+                )
+        );
+    }
+
+    // 测试ConcurrentHashMap使用
+    @GetMapping("/TestConcur")
+    public String TestConCurrent() throws Exception {
+        // 创建一个监听器，用来检验某一段代码的执行效率
+        StopWatch watch = new StopWatch();
+        watch.start("normaluse");
+        Map<String, Long> nor = normaluse();
+        watch.stop();
+
+        // 检验元素的数量  Assert是springboot中的断言语法
+        Assert.isTrue(nor.size() == TIME_COUNT2, "normaluse size error");
+        // 检验元素的累计总数
+        Assert.isTrue(nor.entrySet().stream().mapToLong(item -> item.getValue()).reduce(0, Long::sum) == LOOP_COUNT,
+                "normaluse count error");
+
+        watch.start("gooduse");
+        Map<String, Long> god = gooduse();
+        watch.stop();
+
+        // 检验元素的数量  Assert是springboot中的断言语法
+        Assert.isTrue(god.size() == TIME_COUNT2, "gooduse size error");
+        // 检验元素的累计总数
+        Assert.isTrue(god.entrySet().stream().mapToLong(item -> item.getValue()).reduce(0, Long::sum) == LOOP_COUNT,
+                "gooduse count error");
+        // 输出性能
+        System.out.println(watch.prettyPrint());
+        return "OK";
+    }
+
+    /**
+     * CopyOnWriteArrayList 是一个线程安全的ArrayList ，但因为其实现方式是，每次修改数据的时候都会
+     * 复制一份数据出来，因此适用于 读多写少的场景。
+     */
+
+    @GetMapping("/copyWrite")
+    public Map testWrite() {
+        List<Integer> copyOnWriteArrayList = new CopyOnWriteArrayList<>();
+        List<Integer> synchronizedList = Collections.synchronizedList(new ArrayList<>());
+        StopWatch stopWatch = new StopWatch();
+        int loopCount = 1000000;
+        stopWatch.start("Write:copyOnWriteArrayList");
+        // 循环100000次，并发往CopyOnwrite中 写入随机元素
+        IntStream.rangeClosed(1,loopCount).parallel().forEach(__ -> copyOnWriteArrayList.add(ThreadLocalRandom.current().nextInt(loopCount)));
+        stopWatch.stop();
+
+        stopWatch.start("Write:synchronzedList");
+        IntStream.rangeClosed(1,loopCount).parallel().forEach(__ -> synchronizedList.add(ThreadLocalRandom.current().nextInt(loopCount)));
+        stopWatch.stop();
+
+        System.out.println(stopWatch.prettyPrint());
+        Map result = new HashMap();
+        result.put("copyOnWrite", copyOnWriteArrayList.size());
+        result.put("synchronize", synchronizedList.size());
+        return  result;
+    }
+
+    // 测试并发读性能
+    // 定义一个帮助方法用来填充List
+    private void addAll(List<Integer> list){
+        list.addAll(IntStream.rangeClosed(1,1000000).boxed().collect(Collectors.toList()));
+    }
+
+    @GetMapping("/read")
+    public Map testRead() {
+        List<Integer> copyOnWriteArrayList = new CopyOnWriteArrayList<>();
+        List<Integer> syncronizedList = Collections.synchronizedList(new ArrayList<>());
+        // 填充数据
+        addAll(copyOnWriteArrayList);
+        addAll(syncronizedList);
+
+        StopWatch stopWatch = new StopWatch();
+        int loopCount = 1000000;
+        int count = copyOnWriteArrayList.size();
+
+        stopWatch.start("Read：copyOnWriteArrayList");
+        // 循环100 0000 次并发从CopyOnWriteArrayList随机查询元素
+        IntStream.rangeClosed(1, loopCount).parallel().forEach(__ -> copyOnWriteArrayList.get(ThreadLocalRandom.current().nextInt(count)));
+        stopWatch.stop();
+
+        stopWatch.start("Read:synchronizedlist");
+        IntStream.rangeClosed(1, loopCount).parallel().forEach(__ -> syncronizedList.get(ThreadLocalRandom.current().nextInt(count)));
+        stopWatch.stop();
+
+        Map result = new HashMap();
+        result.put("copyOnWriteArrayList",copyOnWriteArrayList.size());
+        result.put("syncronizedList",syncronizedList.size());
+        return result;
     }
 
 
