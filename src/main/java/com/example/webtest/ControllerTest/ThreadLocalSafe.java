@@ -1,5 +1,8 @@
 package com.example.webtest.ControllerTest;
 
+import ch.qos.logback.core.util.TimeUtil;
+import com.example.webtest.entity.Data;
+import jodd.util.concurrent.ThreadFactoryBuilder;
 import org.springframework.util.Assert;
 import org.springframework.util.StopWatch;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -9,16 +12,26 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
+import static java.lang.System.out;
+
 
 @RestController
 @RequestMapping("/threadLocal")
 public class ThreadLocalSafe {
+    @GetMapping("/test")
+    public Object getTest(){
+        String payload = IntStream.rangeClosed(1,10)
+                .mapToObj(p -> "b")
+                .collect(Collectors.joining(""))+UUID.randomUUID().toString();
+        return payload;
+    }
     /**
      * ThreadLocal使用事例
      */
@@ -83,13 +96,13 @@ public class ThreadLocalSafe {
     public String wrong1 () {
         ConcurrentHashMap<String, Long> concurrentHashMap = getData(TIME_COUNT-100);
         // 初始化900个元素
-        System.out.println("init size:"+concurrentHashMap.size());
+        out.println("init size:"+concurrentHashMap.size());
         ForkJoinPool forkJoinPool = new ForkJoinPool(THREAD_COUNT);
         // 使用线程池并发处理逻辑
         forkJoinPool.execute(() -> IntStream.rangeClosed(1, 10).parallel().forEach(i -> {
             // 查询还需要补充多少个元素
             int gap = TIME_COUNT - concurrentHashMap.size();
-            System.out.println("gap size:"+gap);
+            out.println("gap size:"+gap);
             // 补充元素
             concurrentHashMap.putAll(getData(gap));
         }));
@@ -101,7 +114,7 @@ public class ThreadLocalSafe {
             e.printStackTrace();
         }
         // 输出最后的元素个数
-        System.out.println("finish size:"+concurrentHashMap.size());
+        out.println("finish size:"+concurrentHashMap.size());
         return "ok";
     }
 
@@ -111,14 +124,14 @@ public class ThreadLocalSafe {
     public String right1(){
         ConcurrentHashMap<String, Long> concurrentHashMap = getData(TIME_COUNT-100);
         // 初始化900个元素
-        System.out.println("init size:"+concurrentHashMap.size());
+        out.println("init size:"+concurrentHashMap.size());
         ForkJoinPool forkJoinPool = new ForkJoinPool(THREAD_COUNT);
         // 使用线程池并发处理逻辑
         forkJoinPool.execute(() -> IntStream.rangeClosed(1, 10).parallel().forEach(i -> {
             synchronized (concurrentHashMap) {
                 // 查询还需要补充多少个元素
                 int gap = TIME_COUNT - concurrentHashMap.size();
-                System.out.println("gap size:"+gap);
+                out.println("gap size:"+gap);
                 // 补充元素
                 concurrentHashMap.putAll(getData(gap));
             }
@@ -131,7 +144,7 @@ public class ThreadLocalSafe {
             e.printStackTrace();
         }
         // 输出最后的元素个数
-        System.out.println("finish size:"+concurrentHashMap.size());
+        out.println("finish size:"+concurrentHashMap.size());
         return "OK";
     }
 
@@ -217,7 +230,7 @@ public class ThreadLocalSafe {
         Assert.isTrue(god.entrySet().stream().mapToLong(item -> item.getValue()).reduce(0, Long::sum) == LOOP_COUNT,
                 "gooduse count error");
         // 输出性能
-        System.out.println(watch.prettyPrint());
+        out.println(watch.prettyPrint());
         return "OK";
     }
 
@@ -241,7 +254,7 @@ public class ThreadLocalSafe {
         IntStream.rangeClosed(1,loopCount).parallel().forEach(__ -> synchronizedList.add(ThreadLocalRandom.current().nextInt(loopCount)));
         stopWatch.stop();
 
-        System.out.println(stopWatch.prettyPrint());
+        out.println(stopWatch.prettyPrint());
         Map result = new HashMap();
         result.put("copyOnWrite", copyOnWriteArrayList.size());
         result.put("synchronize", synchronizedList.size());
@@ -281,7 +294,156 @@ public class ThreadLocalSafe {
         return result;
     }
 
+    /**
+     * 静态字段属于类，类级别的锁才能保护，而非静态字段属于类实例，实例级别的锁就可以保护。
+     */
+    @GetMapping("/wrong2")
+    public int wrong2(@RequestParam(value = "count", defaultValue = "1000000") int count){
+        Data.reset();
+        // 多线程循环一定次数调用Data类不同实例的wrong方法
+        IntStream.rangeClosed(1, count).parallel().forEach(i -> new Data().wrong());
+        return Data.getCounter();
+    }
+    @GetMapping("/right2")
+    public int right2(@RequestParam(value = "count", defaultValue = "1000000") int count){
+        Data.reset();
+        // 多线程循环一定次数调用Data类不同实例的wrong方法
+        IntStream.rangeClosed(1, count).parallel().forEach(i -> new Data().right());
+        return Data.getCounter();
+    }
 
+    /**
+     * 代码块加锁粒度，降低锁的粒度，仅对必要的代码块进行加锁
+     */
+    private List<Integer> data = new ArrayList<>();
 
+    // 不涉及共享资源的慢方法
+    private void slow(){
+        try{
+            TimeUnit.MILLISECONDS.sleep(10);
+        }catch (InterruptedException e){
+            e.printStackTrace();
+        }
+    }
+    // 错误的加锁方法
+    @GetMapping("/wrong3")
+    public int wrong3(){
+        StopWatch sw = new StopWatch();
+        sw.start("wrong 全锁");
+        IntStream.rangeClosed(1,1000).parallel().forEach(i ->
+        {
+            synchronized (this) {
+                slow();
+                data.add(i);
+        }
+        });
+        sw.stop();
+        out.println(sw.prettyPrint());
+        return data.size();
+    }
 
+    // 细粒度锁
+    @GetMapping("/right3")
+    public int right3(){
+        StopWatch sw = new StopWatch();
+        sw.start();
+        IntStream.rangeClosed(1,1000).parallel().forEach(i->{
+            slow();
+            synchronized (this){
+                data.add(i);
+            }
+        });
+        sw.stop();
+        out.println(sw.prettyPrint());
+        return data.size();
+    }
+
+    /**
+     * 线程池的使用
+     * 1. 禁止使用Executors类中定义的快捷方式来创建线程，而应该使用new ThreadPoolExecutor来创建线程
+     * newFixedThreadPool 方法中的等待队列LinkedBlockingQueue 是一个Integer.Max_VALUE的无限队列，如果任务一直来，但是线程处理比较慢的
+     * 话会导致oom
+     * newCachedThreadPool的最大线程数量是Integer.MAX_VALUE 是一个没有存储空间的阻塞队列。只要有任务来没有线程处理就要创建一条线程处理。
+     * 大量的任务会导致大量的线程创建，从而导致oom
+     *
+     */
+    //  newFixedThreadPool 出现的OOM问题
+    @GetMapping("/oom1")
+    public void oom1() throws InterruptedException {
+        ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newFixedThreadPool(1);
+        // 打印线程池的信息
+        printStatus(threadPool);
+        for(int i = 0;i< 100000000;i++){
+            threadPool.execute(()-> {
+                String payload = IntStream.rangeClosed(1,1000000)
+                        .mapToObj(__ -> "a")
+                        .collect(Collectors.joining(""))+UUID.randomUUID().toString();
+                try {
+                    TimeUnit.HOURS.sleep(1);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                out.println(payload);
+            });
+        }
+        threadPool.shutdown();
+        threadPool.awaitTermination(1,TimeUnit.HOURS);
+    }
+
+    /**
+     * 线程池的特性检测
+     * @param
+     */
+    @GetMapping("/rightoom")
+    public int rightoom() throws InterruptedException{
+        // 使用一个计数器跟踪完成的任务数量
+        AtomicInteger atomicInteger = new AtomicInteger();
+        // 创建一个具有两个核心线程，5个最大线程、使用容量为10的ArrayBlockingQueue阻塞队列作为工作队列的线程池，
+        // 使用默认的abortPolicy拒绝策略
+        ThreadPoolExecutor threadpool = new ThreadPoolExecutor(2, 5,
+                5, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<>(10),
+                new ThreadFactoryBuilder().setNameFormat("demo-threadPool-%d").get(),
+                new ThreadPoolExecutor.AbortPolicy()
+        );
+        printStatus(threadpool);
+        // 每隔一秒提交一次，一共提交20次
+        IntStream.rangeClosed(1,20).forEach(i->{
+            try {
+                TimeUnit.SECONDS.sleep(1);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            int id = atomicInteger.incrementAndGet();
+            try{
+                threadpool.submit(()->{
+                    out.println(id+":start");
+                    try {
+                        TimeUnit.SECONDS.sleep(10);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    out.println(id+":end");
+                });
+            }catch (Exception e){
+                out.println(id+"error submit task");
+                atomicInteger.incrementAndGet();
+            }
+        });
+        TimeUnit.SECONDS.sleep(60);
+        return atomicInteger.incrementAndGet();
+    }
+
+    private void printStatus(ThreadPoolExecutor threadPool) {
+        Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(
+                ()->
+        {
+            System.out.println("==========");
+            System.out.println("Pool Size: {}"+threadPool.getPoolSize());
+            out.println("Active Threads: "+threadPool.getActiveCount());
+            out.println("Number of Tasks Completed:"+threadPool.getCompletedTaskCount());
+            out.println("Number of Tasks in Queue:"+threadPool.getQueue().size());
+            out.println("===========");
+        },0,1,TimeUnit.SECONDS);
+    }
 }

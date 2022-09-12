@@ -1,11 +1,17 @@
 package com.example.webtest.ControllerTest;
 
+import com.example.webtest.entity.student;
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.xerial.snappy.Snappy;
 import org.xerial.snappy.SnappyOutputStream;
 
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +26,18 @@ public class StudentController {
     @CrossOrigin(value="http://localhost:8081",allowedHeaders = "*",maxAge = 1800)
     public String getStudent(@PathVariable String name){
         System.out.println("---"+name);
+        return "接收成功";
+    }
+
+    @PostMapping("/st")
+    @CrossOrigin(value="http://localhost:8081",allowedHeaders = "*",maxAge = 1800)
+    public String getStudent2(){
+        ServletRequestAttributes servletRequestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        HttpServletRequest request = servletRequestAttributes.getRequest();
+        HttpServletResponse response = servletRequestAttributes.getResponse();
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("text/html;charset=UTF-8");
+        System.out.println("---"+request.getParameter("name"));
         return "接收成功";
     }
 
@@ -125,22 +143,21 @@ public class StudentController {
     // 测试
     @GetMapping("/tx")
     public void getTest(){
-        String xt = "DHFSDF,SDSDFDSF,SDFDF";
-        System.out.println("xt.length:"+xt.length());
-        System.out.println("bytelength:"+xt.getBytes(StandardCharsets.UTF_8).length);
-        System.out.println("字段截取："+xt.substring(0,5));
-        System.out.println("字段截取2："+xt.substring(5,7));
-        List<String> x1 = new ArrayList<String>();
-        x1.add("1");
-        x1.add("2");
-        List<String> x2 = new ArrayList<String>();
-        x2.add("3");
-        x2.add("4");
-        List<String> x = new ArrayList<String>();
-        x.addAll(x1);
-        x.addAll(x2);
-        for(int i=0;i<x.size();i++){
-            System.out.println("list测试"+x.get(i));
+        List<student> ls = new  ArrayList<>();
+        student stu = new student();
+        stu.setName("李四");
+        student stu2 = new student();
+        stu.setName("张三");
+        ls.add(stu);
+        ls.add(stu2);
+        for(student s : ls){
+            System.out.println(s.toString());
+        }
+        ls.stream().forEach(it -> it.setName("王武"));
+        for(student s : ls){
+            System.out.println(s.toString());
         }
     }
+
+
 }
