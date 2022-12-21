@@ -105,6 +105,4 @@ public class NormalErrorTest {
         System.out.println(bi.add(new BigInteger("1")).longValueExact());
     }
 
-
-
 }

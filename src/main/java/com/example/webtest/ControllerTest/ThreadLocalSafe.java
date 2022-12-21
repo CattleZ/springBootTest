@@ -1,6 +1,6 @@
 package com.example.webtest.ControllerTest;
 
-import ch.qos.logback.core.util.TimeUtil;
+
 import com.example.webtest.entity.Data;
 import jodd.util.concurrent.ThreadFactoryBuilder;
 import org.springframework.util.Assert;
@@ -30,6 +30,7 @@ public class ThreadLocalSafe {
         String payload = IntStream.rangeClosed(1,10)
                 .mapToObj(p -> "b")
                 .collect(Collectors.joining(""))+UUID.randomUUID().toString();
+        out.println("over");
         return payload;
     }
     /**
