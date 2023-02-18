@@ -30,4 +30,17 @@ public class MQUtil {
         }
         return new SendResult();
     }
+
+    public SendResult consumer(DefaultMQProducer defaultMQProducer,MessageProducer messageProducer,String topic,String tag,Object object){
+        try{
+            defaultMQProducer.start();
+            Assert.notNull(messageProducer,"message为空");
+            Assert.notNull(defaultMQProducer,"producer为空");
+            return messageProducer.doPush(defaultMQProducer,topic,tag,object);
+        }catch (MQClientException e){
+            log.error("MQCLient异常{}", ExceptionUtil.exceptionStackTraceToString(e));
+            Thread.currentThread().interrupt();
+        }
+        return new SendResult();
+    }
 }
