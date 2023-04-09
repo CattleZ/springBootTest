@@ -1,5 +1,6 @@
 package com.example.webtest.ControllerTest;
 
+import com.example.webtest.ControllerTest.AnnotationLearn.MethodExport;
 import com.example.webtest.entity.student;
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
@@ -38,12 +39,13 @@ public class StudentController {
         return "接收成功";
     }
 
+    @MethodExport // 测试自定义注解
     @GetMapping("/Snappytest")
     public void SnappyCompressCeshi(){
         // 先创建一个byte长度为10000的字符串
         StringBuffer sb = new StringBuffer();
         int i=0;
-        while(sb.length()<=10000){
+        while(sb.length()<=100){
             i++;
             String cur = "BJ00"+Integer.toString(i)+",";
             sb.append(cur);

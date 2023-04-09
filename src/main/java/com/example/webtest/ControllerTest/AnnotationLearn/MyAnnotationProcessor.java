@@ -12,7 +12,7 @@ import java.util.Set;
  * @Date 2023/4/9 12:17
  * 自定义注解处理器
  **/
-@SupportedAnnotationTypes("com.example.webtest.ControllerTest.AnnotationLearn.MyAnnotation.java")
+@SupportedAnnotationTypes("com.example.webtest.ControllerTest.AnnotationLearn.MyAnnotation")
 public class MyAnnotationProcessor extends AbstractProcessor {
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
