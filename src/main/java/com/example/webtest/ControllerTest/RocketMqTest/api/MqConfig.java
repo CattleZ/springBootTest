@@ -15,10 +15,10 @@ public class MqConfig {
     /**
      * 配置文件配置
      */
-    @Value("${xx}")
+//    @Value("${xx}")
     private String groupName;
-    @Value("${xx}")
+//    @Value("${xx}")
     private String nameSvrAddr;
-    @Value("${xx}")
+//    @Value("${xx}")
     private String topic;
 }

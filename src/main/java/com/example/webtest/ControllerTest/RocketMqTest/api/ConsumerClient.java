@@ -14,7 +14,7 @@ import javax.annotation.Resource;
  * @Version 1.0
  * @Date 2023/2/18 13:34
  **/
-@Component
+// @Component 临时注掉
 public class ConsumerClient {
     @Resource
     MqConfig mqConfig;
