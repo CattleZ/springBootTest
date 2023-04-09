@@ -434,6 +434,36 @@ public class ThreadLocalSafe {
         TimeUnit.SECONDS.sleep(60);
         return atomicInteger.incrementAndGet();
     }
+    // 异地调用，多线程方式
+    @GetMapping("/asyncmethodcaller")
+    public void AsyncMethodCaller() throws InterruptedException {
+        // 创建一个新线程并启动
+        Thread thread = new Thread(() -> {
+            // 调用需要异步执行的方法
+            String result = asyncMethod();
+            System.out.println("异步方法执行结果：" + result);
+        });
+        thread.start();
+
+        // 主线程继续执行其他任务
+        System.out.println("主线程继续执行其他任务...");
+
+        // 等待异步线程执行完成
+        thread.join();
+
+        System.out.println("主线程执行完成");
+    }
+
+    // 需要异步执行的方法
+    public String asyncMethod() {
+        // 模拟一个耗时操作
+        try {
+            Thread.sleep(5000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        return "Hello World";
+    }
 
     private void printStatus(ThreadPoolExecutor threadPool) {
         Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(
