@@ -1,9 +1,6 @@
 package com.example.webtest.ControllerTest;
 
-import com.example.webtest.ControllerTest.AnnotationLearn.AnnotationTest;
-import com.example.webtest.ControllerTest.AnnotationLearn.AnnotationTestinte;
-import com.example.webtest.ControllerTest.AnnotationLearn.ExecutionTimeHandler;
-import com.example.webtest.ControllerTest.AnnotationLearn.MethodExport;
+import com.example.webtest.ControllerTest.AnnotationLearn.*;
 import com.example.webtest.entity.student;
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
@@ -50,6 +47,7 @@ public class StudentController {
     }
 
     @MethodExport // 测试自定义注解
+    @MyAnnotation(value = "lilii")
     @GetMapping("/Snappytest")
     public void SnappyCompressCeshi(){
         // 先创建一个byte长度为10000的字符串
