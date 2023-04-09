@@ -1,5 +1,8 @@
 package com.example.webtest.ControllerTest;
 
+import com.example.webtest.ControllerTest.AnnotationLearn.AnnotationTest;
+import com.example.webtest.ControllerTest.AnnotationLearn.AnnotationTestinte;
+import com.example.webtest.ControllerTest.AnnotationLearn.ExecutionTimeHandler;
 import com.example.webtest.ControllerTest.AnnotationLearn.MethodExport;
 import com.example.webtest.entity.student;
 import net.jpountz.lz4.LZ4Compressor;
@@ -10,6 +13,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import org.xerial.snappy.Snappy;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,7 +27,13 @@ public class StudentController {
     @GetMapping("/st/{name}")
     @CrossOrigin(value="http://localhost:8081",allowedHeaders = "*",maxAge = 1800)
     public String getStudent(@PathVariable String name){
-        System.out.println("---"+name);
+        AnnotationTestinte demo = new AnnotationTest();
+        ExecutionTimeHandler handler = new ExecutionTimeHandler(demo);
+        AnnotationTestinte proxy = (AnnotationTestinte) Proxy.newProxyInstance(
+                AnnotationTestinte.class.getClassLoader(),
+                new Class[]{AnnotationTestinte.class},
+                handler);
+        proxy.testAnnotation();
         return "接收成功";
     }
 
