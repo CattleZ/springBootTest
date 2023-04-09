@@ -454,6 +454,26 @@ public class ThreadLocalSafe {
         System.out.println("主线程执行完成");
     }
 
+
+    /**
+     * CompletableFuture 是 Java8 中新增的一个类，它可以在异步任务执行完成后自动执行回调函数，
+     * 实现了异步方法调用的简单化
+     */
+    @GetMapping("/asyncmethodcompletacaller")
+    public void AsyncMethodCompletaCaller(){
+        // 创建 CompletableFuture 实例并异步执行任务
+        CompletableFuture<String> future =
+                CompletableFuture.supplyAsync(() -> asyncMethod());
+
+        // 注册回调函数
+        future.thenAccept(result -> System.out.println("异步方法执行结果：" + result));
+
+        // 主线程继续执行其他任务
+        System.out.println("主线程继续执行其他任务...");
+
+        System.out.println("主线程执行完成");
+    }
+
     // 需要异步执行的方法
     public String asyncMethod() {
         // 模拟一个耗时操作
