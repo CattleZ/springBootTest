@@ -92,6 +92,7 @@
             <artifactId>jodd-bean</artifactId>
             <version>5.1.6</version>
         </dependency>
+
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
