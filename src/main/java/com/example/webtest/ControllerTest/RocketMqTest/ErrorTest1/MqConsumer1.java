@@ -31,7 +31,11 @@ public class MqConsumer1 {
                     if(messageExt.getReconsumeTimes()>1){
                         continue;
                     }
-                    System.out.println("0--topic1--x"+(new String(messageExt.getBody(), RemotingHelper.DEFAULT_CHARSET)));
+                    try {
+                        System.out.println("0--topic1--x"+(new String(messageExt.getBody(), RemotingHelper.DEFAULT_CHARSET)));
+                    } catch (java.io.UnsupportedEncodingException e) {
+                        e.printStackTrace();
+                    }
                 }
                 return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;
             }
